@@ -29,6 +29,7 @@ A web-based trivia game inspired by Jeopardy that calculates 1870Coin ERC-20 rew
 ## Technical Stack
 
 - **Frontend**: Blazor Server (ASP.NET Core 10)
+- **Static deployment**: Root `index.html`, `static.js`, and `static.css` for GitHub Pages and Cloudflare
 - **Backend**: C# with dependency injection
 - **Blockchain**: Web3.js, MetaMask
 - **Styling**: CSS3 with scoped component styles
@@ -140,6 +141,14 @@ The application calculates ERC-20 rewards using the 1870Coin contract metadata. 
 2. Converts points to token amount (points × 0.01)
 3. An authorized treasury initiates an ERC-20 transfer to the player's wallet
 4. The distributor provides the transaction hash for verification
+
+## GitHub Pages, Cloudflare, and reward issuer
+
+The root `index.html` is a self-contained static version of the game and is deployed by `.github/workflows/pages.yml`. This makes the game compatible with GitHub Pages and a Cloudflare custom domain without requiring an ASP.NET server at the edge.
+
+Configure the custom domain in **GitHub Pages** first, then create the corresponding DNS record in Cloudflare with proxying disabled during GitHub verification. GitHub writes the custom-domain value to a `CNAME` file; do not commit a placeholder domain.
+
+The static game uses the same secure model as Crypto Chess: a pre-funded reward vault and a Render-hosted issuer verify a finished game and issue a signed claim. The treasury address and issuer URL are intentionally empty in `js/config.js` because they are not publicly configured in Crypto Chess. Set them to the existing deployed vault and Render issuer endpoint only after the issuer accepts Crypto Trivia's completion payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare.
 
 ### ERC-20 Transfer ABI
 

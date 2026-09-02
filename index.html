@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Crypto Trivia, a wallet-connected general knowledge game.">
+  <title>Crypto Trivia</title>
+  <link rel="stylesheet" href="static.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Crypto Trivia</h1>
+      <p>Classic-category trivia with 1870Coin rewards.</p>
+      <button id="connect-wallet" type="button">Connect MetaMask</button>
+      <p id="wallet-status" role="status">Connect a wallet to play.</p>
+    </header>
+
+    <section id="welcome">
+      <h2>Ready to play?</h2>
+      <p>Answer original questions from six classic trivia categories. Correct answers add to your score.</p>
+      <button id="start-game" type="button" disabled>Start game</button>
+    </section>
+
+    <section id="game" hidden>
+      <div class="scoreboard">
+        <p>Score: <strong id="score">0</strong></p>
+        <p>1870Coin reward: <strong id="reward">0.0000</strong></p>
+      </div>
+      <div id="board" aria-label="Trivia board"></div>
+    </section>
+
+    <section id="question" class="panel" hidden aria-live="polite">
+      <p id="question-category"></p>
+      <h2 id="question-text"></h2>
+      <div id="answers"></div>
+    </section>
+
+    <section id="complete" class="panel" hidden>
+      <h2>Game complete</h2>
+      <p>Your final score is <strong id="final-score"></strong>; your calculated 1870Coin reward is <strong id="final-reward"></strong>.</p>
+      <p>Rewards are issued only by the authorized, pre-funded treasury after server-side completion verification. This site never asks your wallet to send tokens.</p>
+      <button id="play-again" type="button">Play again</button>
+    </section>
+  </main>
+  <script type="module" src="js/config.js"></script>
+  <script type="module" src="static.js"></script>
+</body>
+</html>
