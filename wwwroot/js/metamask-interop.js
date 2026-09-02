@@ -95,55 +95,6 @@ export const MetaMaskInterop = {
         }
     },
 
-    // Transfer ERC-20 tokens (requires Web3.js)
-    transferToken: async function (tokenAddress, toAddress, amount, decimals, fromAddress) {
-        try {
-            if (!this.isMetaMaskInstalled()) {
-                return { success: false, error: 'MetaMask is not installed' };
-            }
-
-            // ERC-20 Transfer ABI
-            const erc20Abi = [
-                {
-                    "constant": false,
-                    "inputs": [
-                        { "name": "_to", "type": "address" },
-                        { "name": "_value", "type": "uint256" }
-                    ],
-                    "name": "transfer",
-                    "outputs": [{ "name": "", "type": "bool" }],
-                    "type": "function"
-                }
-            ];
-
-            // Initialize Web3
-            const web3 = new Web3(window.ethereum);
-            const contract = new web3.eth.Contract(erc20Abi, tokenAddress);
-
-            // Convert amount to token units (multiply by 10^decimals)
-            const tokenAmount = web3.utils.toWei(amount.toString(), 'ether');
-
-            const data = contract.methods.transfer(toAddress, tokenAmount).encodeABI();
-
-            const tx = {
-                from: fromAddress,
-                to: tokenAddress,
-                data: data,
-                gas: '100000',
-                gasPrice: await web3.eth.getGasPrice()
-            };
-
-            const txHash = await window.ethereum.request({
-                method: 'eth_sendTransaction',
-                params: [tx]
-            });
-
-            return { success: true, error: null, txHash: txHash };
-        } catch (error) {
-            return { success: false, error: error.message, txHash: null };
-        }
-    },
-
     // Check if connected to Ethereum mainnet or Sepolia testnet
     isCorrectNetwork: async function () {
         try {
@@ -173,24 +124,3 @@ export const MetaMaskInterop = {
         }
     }
 };
-
-// Load Web3.js library
-function loadWeb3() {
-    return new Promise((resolve, reject) => {
-        if (typeof Web3 !== 'undefined') {
-            resolve();
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-// Initialize on page load
-window.addEventListener('DOMContentLoaded', () => {
-    loadWeb3().catch(err => console.error('Failed to load Web3:', err));
-});
