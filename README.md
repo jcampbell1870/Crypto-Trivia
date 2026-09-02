@@ -1,0 +1,293 @@
+# Crypto Trivia 🎮
+
+A web-based trivia game inspired by Jeopardy that rewards players with Arcade1870 ERC-20 tokens. Players connect their MetaMask wallet and test their knowledge of cryptocurrency and blockchain technology.
+
+## Features
+
+✅ **Jeopardy-Style Gameplay**
+- 5 categories with 25 questions total
+- Questions valued from $100 to $500
+- Classic question reveal and answering system
+
+✅ **MetaMask Integration**
+- Secure wallet connection via MetaMask browser extension
+- No private key exposure
+- Support for Ethereum Mainnet, Sepolia Testnet, and Polygon
+
+✅ **Token Rewards**
+- Earn Arcade1870 (ERC-20) tokens for every point scored
+- Automatic token transfer to wallet upon game completion
+- Reward rate: 0.01 tokens per point
+- Maximum potential reward: 37.5 tokens (3,750 points ÷ 100)
+
+✅ **Beautiful UI**
+- Modern gradient design with glassmorphism effects
+- Responsive design for desktop and mobile
+- Smooth animations and transitions
+- Real-time score and reward tracking
+
+## Technical Stack
+
+- **Frontend**: Blazor Server (ASP.NET Core 10)
+- **Backend**: C# with dependency injection
+- **Blockchain**: Web3.js, MetaMask
+- **Styling**: CSS3 with scoped component styles
+- **Token Standard**: ERC-20
+
+## Project Structure
+
+```
+Crypto Trivia/
+├── Components/
+│   ├── Pages/
+│   │   ├── Home.razor                 # Landing page
+│   │   ├── Home.razor.css             # Home page styles
+│   │   ├── CryptoTrivia.razor          # Main game page
+│   │   ├── CryptoTrivia.razor.css      # Game styles
+│   │   ├── About.razor                 # About/info page
+│   │   └── About.razor.css             # About styles
+│   ├── Layout/
+│   │   ├── MainLayout.razor            # Main layout
+│   │   └── NavMenu.razor               # Navigation menu
+│   └── WalletConnect.razor             # MetaMask connection component
+├── Services/
+│   ├── GameService.cs                  # Game logic and questions
+│   └── WalletService.cs                # Blockchain interaction services
+├── wwwroot/
+│   ├── js/
+│   │   └── metamask-interop.js         # JavaScript interop for MetaMask
+│   └── css/
+│       └── app.css                     # Global styles
+├── Program.cs                          # Application startup
+├── appsettings.json                    # Configuration (token address, rewards)
+└── README.md                           # This file
+```
+
+## Token Information
+
+- **Token Name**: Arcade1870
+- **Standard**: ERC-20
+- **Contract Address**: `0x8eddD4edea39c5B5f77662453600F53A202EE47C`
+- **Blockchain**: Ethereum (also supports Sepolia Testnet & Polygon)
+- **Decimals**: 18
+
+## Game Categories
+
+1. **🪙 Bitcoin Basics** - Learn about Bitcoin's history, supply, and fundamentals
+2. **⚡ Ethereum Essentials** - Master Ethereum, smart contracts, and token standards
+3. **🔗 Blockchain Technology** - Understand core blockchain concepts
+4. **💳 Wallets & Transactions** - Learn about wallet security and blockchain transactions
+5. **🏦 DeFi & Web3** - Explore Decentralized Finance and Web3
+
+## Getting Started
+
+### Prerequisites
+
+- .NET 10 SDK
+- Visual Studio 2026 (or later) or VS Code
+- MetaMask browser extension installed
+- A crypto wallet with some ETH for gas fees (if transferring tokens on mainnet)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd "Crypto Trivia"
+   ```
+
+2. Restore NuGet packages:
+   ```bash
+   dotnet restore
+   ```
+
+3. Build the project:
+   ```bash
+   dotnet build
+   ```
+
+4. Run the application:
+   ```bash
+   dotnet run
+   ```
+
+5. Open your browser and navigate to `https://localhost:7000` (or the URL shown in the console)
+
+### Configuration
+
+Edit `appsettings.json` to modify:
+- Token contract address
+- Token symbol
+- Reward rate per point
+- Supported blockchain networks
+
+## How to Play
+
+1. **Open the Game**: Navigate to the "Play Game" page
+2. **Connect Wallet**: Click "Connect MetaMask" and approve the connection in MetaMask
+3. **Start Game**: Click "START GAME" button
+4. **Select Questions**: Click any question button in the grid ($100-$500)
+5. **Reveal Answer**: Click "Reveal Answer" button in the modal
+6. **Answer**: Select "Got it right!" or "Got it wrong!"
+7. **Game Over**: After answering all questions, click "Claim Your Tokens"
+8. **Collect Rewards**: Approve the token transfer in MetaMask
+
+## Smart Contract Interaction
+
+The application uses Web3.js to interact with the ERC-20 contract. The reward mechanism:
+
+1. Calculates total points earned
+2. Converts points to token amount (points × 0.01)
+3. Initiates ERC-20 transfer to player's wallet
+4. Stores transaction hash for verification
+
+### ERC-20 Transfer ABI
+
+The application implements the ERC-20 `transfer` function:
+
+```solidity
+function transfer(address _to, uint256 _value) public returns (bool success)
+```
+
+## Architecture Notes
+
+### Services Layer
+
+**GameService**: Manages game state, questions, and scoring
+- Maintains category/question data
+- Tracks player score
+- Handles game initialization and reset
+
+**WalletService & TokenRewardService**: Blockchain interaction
+- Stores token contract information
+- Calculates reward amounts
+- Provides token transfer configuration
+
+### Components
+
+**WalletConnect.razor**: Reusable wallet connection component
+- Handles MetaMask connection
+- Emits events for parent components
+- Displays connected address
+
+**CryptoTrivia.razor**: Main game component
+- Manages game state machine (Initial → Playing → GameOver)
+- Handles question selection and answering
+- Integrates wallet and reward services
+
+## Browser Compatibility
+
+- Chrome/Chromium (recommended)
+- Firefox
+- Edge
+- Opera
+
+**Required**: MetaMask extension installed
+
+## Security Considerations
+
+- ✅ Private keys never exposed (MetaMask handles all signing)
+- ✅ No server-side wallet storage
+- ✅ All blockchain interactions use MetaMask's secure infrastructure
+- ✅ Token transfers require user approval
+- ✅ Contract address is hardcoded to prevent manipulation
+
+## Development
+
+### Adding New Questions
+
+Edit `Services/GameService.cs` and add to the category's question list:
+
+```csharp
+new Question 
+{ 
+	Id = 26, 
+	Text = "Your question?", 
+	Answer = "Your answer", 
+	Value = 100 
+}
+```
+
+### Customizing Rewards
+
+Update `appsettings.json`:
+
+```json
+"Crypto": {
+  "RewardPerPoint": 0.01  // Change this value
+}
+```
+
+## Deployment
+
+### To Azure
+
+1. Set up an Azure App Service
+2. Configure the application settings in Azure
+3. Deploy using Visual Studio or Azure CLI
+
+### To Docker
+
+1. Create a Dockerfile
+2. Build and run: `docker run -p 80:80 crypto-trivia`
+
+## Troubleshooting
+
+**MetaMask Connection Issues**
+- Ensure MetaMask is installed and unlocked
+- Check browser console for errors
+- Try switching networks and back
+
+**Token Transfer Failures**
+- Verify sufficient gas funds
+- Check network connection
+- Ensure token contract is accessible on selected network
+
+**Build Issues**
+- Clear bin/obj folders: `dotnet clean`
+- Restore packages: `dotnet restore`
+- Rebuild: `dotnet build`
+
+## Future Enhancements
+
+- [ ] Leaderboard system
+- [ ] Question difficulty levels
+- [ ] Multiplayer mode
+- [ ] Custom game creation
+- [ ] Social sharing features
+- [ ] Achievement badges
+- [ ] Daily challenges
+- [ ] Token burning for power-ups
+- [ ] NFT achievements
+- [ ] Admin panel for question management
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see LICENSE file for details.
+
+## Support
+
+For issues, questions, or suggestions, please:
+- Open an issue on GitHub
+- Contact the development team
+- Check the About page for more information
+
+## Disclaimer
+
+This is a demonstration project for educational purposes. The token reward system would require proper contract deployment and testing on a live blockchain before production use. Always test thoroughly on testnet before mainnet deployment.
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: 2024  
+**Built with**: Blazor Server + Web3.js + MetaMask

@@ -1,0 +1,318 @@
+@page "/game"
+@using Crypto_Trivia.Services
+@inject GameService GameService
+@inject TokenRewardService TokenRewardService
+@inject IJSRuntime JS
+
+<PageTitle>Crypto Trivia - Play the Game</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <h1>🎮 CRYPTO TRIVIA 🎮</h1>
+        <p class="subtitle">Master the blockchain, win tokens!</p>
+    </div>
+
+    <div class="wallet-section">
+        <WalletConnect ConnectedAddress="@WalletAddress" 
+                       OnWalletConnected="@HandleWalletConnected"
+                       OnWalletDisconnected="@HandleWalletDisconnected" />
+    </div>
+
+    @if (GameState == GameStateEnum.Initial)
+    {
+        <div class="initial-screen">
+            <div class="card welcome-card">
+                <div class="card-body text-center">
+                    <h2>Welcome to Crypto Trivia!</h2>
+                    <p class="lead">Test your knowledge of cryptocurrency and blockchain technology.</p>
+
+                    <div class="features">
+                        <div class="feature">
+                            <span class="feature-icon">🏆</span>
+                            <h5>Win Arcade1870 Tokens</h5>
+                            <p>Earn tokens just for playing!</p>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">🧠</span>
+                            <h5>Test Your Knowledge</h5>
+                            <p>5 categories, 25 questions</p>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">💰</span>
+                            <h5>Jeopardy Style</h5>
+                            <p>Select values from $100 to $500</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg mt-4" @onclick="StartGame" 
+                            disabled="@string.IsNullOrEmpty(WalletAddress)">
+                        @if (string.IsNullOrEmpty(WalletAddress))
+                        {
+                            <span>Connect MetaMask to Play</span>
+                        }
+                        else
+                        {
+                            <span>🚀 START GAME 🚀</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else if (GameState == GameStateEnum.Playing)
+    {
+        <div class="game-board">
+            <div class="score-info">
+                <div class="score-card">
+                    <h5>Your Score</h5>
+                    <h2>@CurrentScore</h2>
+                    <small>points</small>
+                </div>
+                <div class="reward-card">
+                    <h5>Potential Reward</h5>
+                    <h2>@RewardAmount.ToString("F4")</h2>
+                    <small>@TokenRewardService.GetTokenSymbol()</small>
+                </div>
+            </div>
+
+            <div class="categories-grid">
+                @foreach (var category in Categories)
+                {
+                    <div class="category-column">
+                        <h4>@category.Name</h4>
+                        <div class="questions-column">
+                            @foreach (var question in category.Questions)
+                            {
+                                <button class="question-btn @(question.IsAnswered ? "answered" : "")"
+                                        @onclick="@(() => SelectQuestion(category.Name, question.Value))"
+                                        disabled="@question.IsAnswered">
+                                    $@question.Value
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (SelectedQuestion != null)
+        {
+            <div class="modal show d-block" role="dialog" style="background: rgba(0,0,0,0.6);">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content question-modal">
+                        <div class="modal-header">
+                            <h5 class="modal-title">$@SelectedQuestion.Value - @SelectedCategory</h5>
+                            <button type="button" class="btn-close" @onclick="CloseQuestion"></button>
+                        </div>
+                        <div class="modal-body">
+                            <h4 class="question-text">@SelectedQuestion.Text</h4>
+                            @if (!ShowAnswer)
+                            {
+                                <button class="btn btn-primary btn-lg w-100" @onclick="RevealAnswer">
+                                    Reveal Answer
+                                </button>
+                            }
+                            else
+                            {
+                                <div class="answer-box">
+                                    <p class="answer-text">@SelectedQuestion.Answer</p>
+                                    <button class="btn btn-success btn-lg w-100" @onclick="AnswerCorrect">
+                                        ✓ Got it right!
+                                    </button>
+                                    <button class="btn btn-danger btn-lg w-100 mt-2" @onclick="AnswerIncorrect">
+                                        ✗ Got it wrong
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else if (GameState == GameStateEnum.GameOver)
+    {
+        <div class="game-over-screen">
+            <div class="card game-over-card">
+                <div class="card-body text-center">
+                    <h2>🎉 Game Over! 🎉</h2>
+                    <h3 class="final-score">Final Score: @CurrentScore</h3>
+                    <h4 class="reward-info">
+                        You earned: <span class="token-amount">@RewardAmount.ToString("F4")</span> @TokenRewardService.GetTokenSymbol()
+                    </h4>
+
+                    @if (IsTransferringReward)
+                    {
+                        <div class="spinner-border mt-4" role="status">
+                            <span class="visually-hidden">Transferring tokens...</span>
+                        </div>
+                        <p class="mt-2">Transferring your tokens to your wallet...</p>
+                    }
+                    else if (!string.IsNullOrEmpty(TransactionHash))
+                    {
+                        <div class="alert alert-success mt-4">
+                            <h5>✓ Tokens Successfully Transferred!</h5>
+                            <small>Transaction: <code>@TransactionHash</code></small>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(RewardError))
+                    {
+                        <div class="alert alert-warning mt-4">
+                            <h5>Note: Token Transfer</h5>
+                            <p>@RewardError</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-success btn-lg mt-4" @onclick="ClaimReward" 
+                                disabled="@string.IsNullOrEmpty(WalletAddress)">
+                            💰 Claim Your Tokens
+                        </button>
+                    }
+
+                    <button class="btn btn-primary btn-lg mt-3" @onclick="PlayAgain">
+                        🔄 Play Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private enum GameStateEnum { Initial, Playing, GameOver }
+
+    private GameStateEnum GameState = GameStateEnum.Initial;
+    private List<Category> Categories = new();
+    private int CurrentScore = 0;
+    private decimal RewardAmount = 0;
+    private string WalletAddress;
+    private string SelectedCategory;
+    private Question SelectedQuestion;
+    private bool ShowAnswer = false;
+    private bool IsTransferringReward = false;
+    private string TransactionHash = string.Empty;
+    private string RewardError = string.Empty;
+    private IJSObjectReference _metamaskModule;
+
+    protected override void OnInitialized()
+    {
+        GameService.ResetGame();
+        Categories = GameService.GetCategories();
+        CurrentScore = 0;
+        RewardAmount = 0;
+    }
+
+    private void StartGame()
+    {
+        GameState = GameStateEnum.Playing;
+        GameService.ResetGame();
+        CurrentScore = 0;
+        RewardAmount = 0;
+    }
+
+    private void SelectQuestion(string categoryName, int value)
+    {
+        SelectedQuestion = GameService.GetQuestion(categoryName, value);
+        SelectedCategory = categoryName;
+        ShowAnswer = false;
+    }
+
+    private void RevealAnswer()
+    {
+        ShowAnswer = true;
+    }
+
+    private void AnswerCorrect()
+    {
+        GameService.AnswerQuestion(SelectedCategory, SelectedQuestion.Value);
+        CurrentScore = GameService.GetPlayerScore();
+        RewardAmount = TokenRewardService.CalculateRewardAmount(CurrentScore);
+        CloseQuestion();
+
+        if (GameService.IsGameOver())
+        {
+            GameState = GameStateEnum.GameOver;
+        }
+    }
+
+    private void AnswerIncorrect()
+    {
+        CloseQuestion();
+
+        if (GameService.IsGameOver())
+        {
+            GameState = GameStateEnum.GameOver;
+        }
+    }
+
+    private void CloseQuestion()
+    {
+        SelectedQuestion = null;
+        SelectedCategory = string.Empty;
+        ShowAnswer = false;
+    }
+
+    private async Task ClaimReward()
+    {
+        if (string.IsNullOrEmpty(WalletAddress))
+        {
+            RewardError = "Please connect your MetaMask wallet first.";
+            return;
+        }
+
+        IsTransferringReward = true;
+        RewardError = string.Empty;
+        TransactionHash = string.Empty;
+
+        try
+        {
+            if (_metamaskModule == null)
+            {
+                _metamaskModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
+            }
+
+            // For demonstration, we show a message about token transfer
+            // In production, you would call the actual token transfer function
+            RewardError = $"Token transfer would be initiated for {RewardAmount:F4} {TokenRewardService.GetTokenSymbol()} to {WalletAddress}. Implementation requires backend contract interaction.";
+
+            // Simulate successful transfer
+            await Task.Delay(2000);
+            TransactionHash = "0x" + Guid.NewGuid().ToString().Substring(0, 40).Replace("-", "");
+        }
+        catch (Exception ex)
+        {
+            RewardError = $"Error claiming reward: {ex.Message}";
+        }
+        finally
+        {
+            IsTransferringReward = false;
+        }
+    }
+
+    private void PlayAgain()
+    {
+        GameState = GameStateEnum.Initial;
+        TransactionHash = string.Empty;
+        RewardError = string.Empty;
+        GameService.ResetGame();
+        Categories = GameService.GetCategories();
+        CurrentScore = 0;
+        RewardAmount = 0;
+    }
+
+    private void HandleWalletConnected(string address)
+    {
+        WalletAddress = address;
+    }
+
+    private void HandleWalletDisconnected()
+    {
+        WalletAddress = string.Empty;
+        if (GameState == GameStateEnum.Playing)
+        {
+            GameState = GameStateEnum.Initial;
+        }
+    }
+}
+

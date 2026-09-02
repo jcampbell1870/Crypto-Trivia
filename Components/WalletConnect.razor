@@ -1,0 +1,177 @@
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+<div class="wallet-container">
+    @if (string.IsNullOrEmpty(ConnectedAddress))
+    {
+        <button class="btn btn-warning" @onclick="ConnectWallet" disabled="@IsConnecting">
+            @if (IsConnecting)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <span>Connecting...</span>
+            }
+            else
+            {
+                <span>🦊 Connect MetaMask</span>
+            }
+        </button>
+    }
+    else
+    {
+        <div class="wallet-info">
+            <div class="connected-badge">
+                <span class="badge bg-success">✓ Connected</span>
+            </div>
+            <div class="wallet-address">
+                <small>Wallet: <code>@FormatAddress(ConnectedAddress)</code></small>
+            </div>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger alert-sm mt-2">
+                    @ErrorMessage
+                </div>
+            }
+            <button class="btn btn-sm btn-outline-danger" @onclick="DisconnectWallet">
+                Disconnect
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string ConnectedAddress { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnWalletConnected { get; set; }
+
+    [Parameter]
+    public EventCallback OnWalletDisconnected { get; set; }
+
+    private bool IsConnecting = false;
+    private string ErrorMessage = string.Empty;
+    private IJSObjectReference _module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
+
+                // Check if already connected
+                var account = await _module.InvokeAsync<string>("MetaMaskInterop.getCurrentAccount");
+                if (!string.IsNullOrEmpty(account))
+                {
+                    await OnWalletConnected.InvokeAsync(account);
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = "Failed to initialize MetaMask integration: " + ex.Message;
+            }
+        }
+    }
+
+    private async Task ConnectWallet()
+    {
+        if (_module == null)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = "Failed to load MetaMask integration: " + ex.Message;
+                return;
+            }
+        }
+
+        IsConnecting = true;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var result = await _module.InvokeAsync<dynamic>("MetaMaskInterop.connectWallet");
+
+            if (result["success"])
+            {
+                string address = result["address"];
+                await OnWalletConnected.InvokeAsync(address);
+                ErrorMessage = string.Empty;
+            }
+            else
+            {
+                ErrorMessage = result["error"]?.ToString() ?? "Failed to connect wallet";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "Connection error: " + ex.Message;
+        }
+        finally
+        {
+            IsConnecting = false;
+        }
+    }
+
+    private async Task DisconnectWallet()
+    {
+        ConnectedAddress = string.Empty;
+        ErrorMessage = string.Empty;
+        await OnWalletDisconnected.InvokeAsync();
+    }
+
+    private string FormatAddress(string address)
+    {
+        if (string.IsNullOrEmpty(address) || address.Length < 10)
+            return address;
+        return $"{address.Substring(0, 6)}...{address.Substring(address.Length - 4)}";
+    }
+}
+
+<style>
+    .wallet-container {
+        padding: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .wallet-info {
+        color: white;
+    }
+
+    .connected-badge {
+        margin-bottom: 10px;
+    }
+
+    .wallet-address {
+        margin-bottom: 10px;
+        font-size: 0.9em;
+    }
+
+    .wallet-address code {
+        background-color: rgba(255, 255, 255, 0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .alert-sm {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border: none;
+        font-weight: bold;
+    }
+
+    .btn-warning:hover {
+        background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+    }
+</style>
