@@ -1,6 +1,6 @@
 # Crypto Trivia 🎮
 
-A web-based trivia game inspired by Jeopardy that rewards players with Arcade1870 ERC-20 tokens. Players connect their MetaMask wallet and test their knowledge of cryptocurrency and blockchain technology.
+A web-based trivia game inspired by Jeopardy that calculates 1870Coin ERC-20 rewards. Players connect their MetaMask wallet and test their knowledge of cryptocurrency and blockchain technology.
 
 ## Features
 
@@ -15,8 +15,8 @@ A web-based trivia game inspired by Jeopardy that rewards players with Arcade187
 - Support for Ethereum Mainnet, Sepolia Testnet, and Polygon
 
 ✅ **Token Rewards**
-- Earn Arcade1870 (ERC-20) tokens for every point scored
-- Automatic token transfer to wallet upon game completion
+- Earn 1870Coin (ERC-20) rewards for every point scored
+- Reward amounts are calculated for authorized distribution to the connected wallet
 - Reward rate: 0.01 tokens per point
 - Maximum potential reward: 37.5 tokens (3,750 points ÷ 100)
 
@@ -29,6 +29,7 @@ A web-based trivia game inspired by Jeopardy that rewards players with Arcade187
 ## Technical Stack
 
 - **Frontend**: Blazor Server (ASP.NET Core 10)
+- **Static deployment**: Root `index.html`, `static.js`, and `static.css` for GitHub Pages and Cloudflare
 - **Backend**: C# with dependency injection
 - **Blockchain**: Web3.js, MetaMask
 - **Styling**: CSS3 with scoped component styles
@@ -65,9 +66,9 @@ Crypto Trivia/
 
 ## Token Information
 
-- **Token Name**: Arcade1870
+- **Token Name**: 1870Coin
 - **Standard**: ERC-20
-- **Contract Address**: `0x8eddD4edea39c5B5f77662453600F53A202EE47C`
+- **Contract Address**: `0xcF0A9F89ab34D39C11B5e08e1c6aC33A47e207c8`
 - **Blockchain**: Ethereum (also supports Sepolia Testnet & Polygon)
 - **Decimals**: 18
 
@@ -129,17 +130,25 @@ Edit `appsettings.json` to modify:
 4. **Select Questions**: Click any question button in the grid ($100-$500)
 5. **Reveal Answer**: Click "Reveal Answer" button in the modal
 6. **Answer**: Select "Got it right!" or "Got it wrong!"
-7. **Game Over**: After answering all questions, click "Claim Your Tokens"
-8. **Collect Rewards**: Approve the token transfer in MetaMask
+7. **Game Over**: Note the 1870Coin reward calculated for your connected wallet
+8. **Collect Rewards**: An authorized 1870Coin distributor sends the reward; the game never asks your wallet to transfer tokens.
 
 ## Smart Contract Interaction
 
-The application uses Web3.js to interact with the ERC-20 contract. The reward mechanism:
+The application calculates ERC-20 rewards using the 1870Coin contract metadata. A production distributor must securely submit any token transfer from a funded treasury:
 
 1. Calculates total points earned
 2. Converts points to token amount (points × 0.01)
-3. Initiates ERC-20 transfer to player's wallet
-4. Stores transaction hash for verification
+3. An authorized treasury initiates an ERC-20 transfer to the player's wallet
+4. The distributor provides the transaction hash for verification
+
+## GitHub Pages, Cloudflare, and reward issuer
+
+The root `index.html` is a self-contained static version of the game and is deployed by `.github/workflows/pages.yml`. This makes the game compatible with GitHub Pages and a Cloudflare custom domain without requiring an ASP.NET server at the edge.
+
+Configure the custom domain in **GitHub Pages** first, then create the corresponding DNS record in Cloudflare with proxying disabled during GitHub verification. GitHub writes the custom-domain value to a `CNAME` file; do not commit a placeholder domain.
+
+The static game uses the same secure model as Crypto Chess: a pre-funded reward vault and a Render-hosted issuer verify a finished game and issue a signed claim. The treasury address and issuer URL are intentionally empty in `js/config.js` because they are not publicly configured in Crypto Chess. Set them to the existing deployed vault and Render issuer endpoint only after the issuer accepts Crypto Trivia's completion payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare.
 
 ### ERC-20 Transfer ABI
 
@@ -189,7 +198,7 @@ function transfer(address _to, uint256 _value) public returns (bool success)
 - ✅ Private keys never exposed (MetaMask handles all signing)
 - ✅ No server-side wallet storage
 - ✅ All blockchain interactions use MetaMask's secure infrastructure
-- ✅ Token transfers require user approval
+- ✅ The game never asks a player to transfer tokens to claim a reward
 - ✅ Contract address is hardcoded to prevent manipulation
 
 ## Development
