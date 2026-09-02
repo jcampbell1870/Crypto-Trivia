@@ -3,5 +3,5 @@ export const rewardConfig = {
   tokenSymbol: "1870Coin",
   chainId: "0x1",
   rewardVaultAddress: "0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d",
-  rewardIssuerUrl: ""
+  rewardIssuerUrl: "https://oidc.render.com/srv-dabedngjo6nc739vg4mg"
 };
