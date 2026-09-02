@@ -2,7 +2,6 @@
 @using Crypto_Trivia.Services
 @inject GameService GameService
 @inject TokenRewardService TokenRewardService
-@inject IJSRuntime JS
 
 <PageTitle>Crypto Trivia - Play the Game</PageTitle>
 
@@ -29,7 +28,7 @@
                     <div class="features">
                         <div class="feature">
                             <span class="feature-icon">🏆</span>
-                            <h5>Win Arcade1870 Tokens</h5>
+                            <h5>Win 1870Coin Tokens</h5>
                             <p>Earn tokens just for playing!</p>
                         </div>
                         <div class="feature">
@@ -141,34 +140,10 @@
                         You earned: <span class="token-amount">@RewardAmount.ToString("F4")</span> @TokenRewardService.GetTokenSymbol()
                     </h4>
 
-                    @if (IsTransferringReward)
-                    {
-                        <div class="spinner-border mt-4" role="status">
-                            <span class="visually-hidden">Transferring tokens...</span>
-                        </div>
-                        <p class="mt-2">Transferring your tokens to your wallet...</p>
-                    }
-                    else if (!string.IsNullOrEmpty(TransactionHash))
-                    {
-                        <div class="alert alert-success mt-4">
-                            <h5>✓ Tokens Successfully Transferred!</h5>
-                            <small>Transaction: <code>@TransactionHash</code></small>
-                        </div>
-                    }
-                    else if (!string.IsNullOrEmpty(RewardError))
-                    {
-                        <div class="alert alert-warning mt-4">
-                            <h5>Note: Token Transfer</h5>
-                            <p>@RewardError</p>
-                        </div>
-                    }
-                    else
-                    {
-                        <button class="btn btn-success btn-lg mt-4" @onclick="ClaimReward" 
-                                disabled="@string.IsNullOrEmpty(WalletAddress)">
-                            💰 Claim Your Tokens
-                        </button>
-                    }
+                    <div class="alert alert-info mt-4">
+                        <h5>1870Coin reward pending</h5>
+                        <p>An authorized 1870Coin distributor must send this reward to your connected wallet. This game never requests a transfer from your wallet.</p>
+                    </div>
 
                     <button class="btn btn-primary btn-lg mt-3" @onclick="PlayAgain">
                         🔄 Play Again
@@ -190,10 +165,6 @@
     private string SelectedCategory;
     private Question SelectedQuestion;
     private bool ShowAnswer = false;
-    private bool IsTransferringReward = false;
-    private string TransactionHash = string.Empty;
-    private string RewardError = string.Empty;
-    private IJSObjectReference _metamaskModule;
 
     protected override void OnInitialized()
     {
@@ -253,48 +224,9 @@
         ShowAnswer = false;
     }
 
-    private async Task ClaimReward()
-    {
-        if (string.IsNullOrEmpty(WalletAddress))
-        {
-            RewardError = "Please connect your MetaMask wallet first.";
-            return;
-        }
-
-        IsTransferringReward = true;
-        RewardError = string.Empty;
-        TransactionHash = string.Empty;
-
-        try
-        {
-            if (_metamaskModule == null)
-            {
-                _metamaskModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
-            }
-
-            // For demonstration, we show a message about token transfer
-            // In production, you would call the actual token transfer function
-            RewardError = $"Token transfer would be initiated for {RewardAmount:F4} {TokenRewardService.GetTokenSymbol()} to {WalletAddress}. Implementation requires backend contract interaction.";
-
-            // Simulate successful transfer
-            await Task.Delay(2000);
-            TransactionHash = "0x" + Guid.NewGuid().ToString().Substring(0, 40).Replace("-", "");
-        }
-        catch (Exception ex)
-        {
-            RewardError = $"Error claiming reward: {ex.Message}";
-        }
-        finally
-        {
-            IsTransferringReward = false;
-        }
-    }
-
     private void PlayAgain()
     {
         GameState = GameStateEnum.Initial;
-        TransactionHash = string.Empty;
-        RewardError = string.Empty;
         GameService.ResetGame();
         Categories = GameService.GetCategories();
         CurrentScore = 0;
@@ -315,4 +247,3 @@
         }
     }
 }
-

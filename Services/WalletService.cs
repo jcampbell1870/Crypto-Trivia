@@ -4,8 +4,8 @@ namespace Crypto_Trivia.Services
 {
     public class WalletService
     {
-        private const string TokenContractAddress = "0x8eddD4edea39c5B5f77662453600F53A202EE47C";
-        private const string TokenSymbol = "Arcade1870";
+        private const string TokenContractAddress = "0xcF0A9F89ab34D39C11B5e08e1c6aC33A47e207c8";
+        private const string TokenSymbol = "1870Coin";
         private const int TokenDecimals = 18;
 
         public async Task<string> ConnectWalletAsync()
