@@ -31,7 +31,6 @@ public sealed class RewardIssuerService
         var expectedReward = Validate(request);
 
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
-        await db.Database.EnsureCreatedAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var claim = await db.Claims.SingleOrDefaultAsync(item => item.GameId == request.GameId, cancellationToken);
         if (claim is not null)
@@ -46,50 +45,54 @@ public sealed class RewardIssuerService
             CreatedAtUtc = DateTime.UtcNow
         };
         db.Claims.Add(claim);
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
         try
         {
-            var rpcUrl = RequiredSetting("Crypto:IssuerRpcUrl");
-            var privateKey = RequiredSetting("Crypto:IssuerPrivateKey");
-            var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
-            var configuredChain = RequiredSetting("Crypto:IssuerChainId");
-            var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
-            var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain[2..], 16)));
-            var web3 = new Web3(account, rpcUrl);
-
-            if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Issuer key does not control the configured reward treasury.");
-            if (!string.Equals(request.TokenAddress, configuredToken, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(request.ChainId, configuredChain, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Token or network does not match issuer configuration.");
-
-            var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
-            var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(expectedReward, decimals);
-            var rewardHex = Convert.ToHexString(rewardUnits.ToByteArray(isUnsigned: true, isBigEndian: true)).ToLowerInvariant();
-            if (rewardHex.Length > 64)
-                throw new InvalidOperationException("The reward amount is too large.");
-            var transferData = "0xa9059cbb" + request.WalletAddress[2..].PadLeft(64, '0') + rewardHex.PadLeft(64, '0');
-            var txHash = await web3.Eth.Transactions.SendTransaction.SendRequestAsync(
-                new Nethereum.RPC.Eth.DTOs.TransactionInput
-                {
-                    From = account.Address,
-                    To = configuredToken,
-                    Data = transferData
-                });
-
-            await using var updateDb = await _dbFactory.CreateDbContextAsync(cancellationToken);
-            claim.Status = "submitted";
-            claim.TransactionHash = txHash;
-            updateDb.Claims.Update(claim);
-            await updateDb.SaveChangesAsync(cancellationToken);
-            return new("submitted", txHash);
+            await db.SaveChangesAsync(cancellationToken);
         }
-        catch
+        catch (DbUpdateException)
         {
+            var existingClaim = await db.Claims.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.GameId == request.GameId, cancellationToken);
+            if (existingClaim is not null)
+                return new("already_submitted", existingClaim.TransactionHash);
             throw;
         }
+        await transaction.CommitAsync(cancellationToken);
+
+        var rpcUrl = RequiredSetting("Crypto:IssuerRpcUrl");
+        var privateKey = RequiredSetting("Crypto:IssuerPrivateKey");
+        var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
+        var configuredChain = RequiredSetting("Crypto:IssuerChainId");
+        var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
+        var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain[2..], 16)));
+        var web3 = new Web3(account, rpcUrl);
+
+        if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Issuer key does not control the configured reward treasury.");
+        if (!string.Equals(request.TokenAddress, configuredToken, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(request.ChainId, configuredChain, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Token or network does not match issuer configuration.");
+
+        var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
+        var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(expectedReward, decimals);
+        var rewardHex = Convert.ToHexString(rewardUnits.ToByteArray(isUnsigned: true, isBigEndian: true)).ToLowerInvariant();
+        if (rewardHex.Length > 64)
+            throw new InvalidOperationException("The reward amount is too large.");
+        var transferData = "0xa9059cbb" + request.WalletAddress[2..].PadLeft(64, '0') + rewardHex.PadLeft(64, '0');
+        var txHash = await web3.Eth.Transactions.SendTransaction.SendRequestAsync(
+            new Nethereum.RPC.Eth.DTOs.TransactionInput
+            {
+                From = account.Address,
+                To = configuredToken,
+                Data = transferData
+            });
+
+        await using var updateDb = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        claim.Status = "submitted";
+        claim.TransactionHash = txHash;
+        updateDb.Claims.Update(claim);
+        await updateDb.SaveChangesAsync(cancellationToken);
+        return new("submitted", txHash);
     }
 
     private decimal Validate(RewardClaimRequest request)
