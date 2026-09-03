@@ -73,8 +73,25 @@ function answer(index) {
   $("score").textContent = score; $("reward").textContent = formatReward(); $("question").hidden = true; drawBoard();
   if (answered === 30) completeGame();
 }
-function completeGame() {
+async function completeGame() {
   $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`; $("complete").hidden = false;
+
+  if (!account || !rewardConfig.tokenAddress) return;
+
+  try {
+    const sender = rewardConfig.rewardVaultAddress || account;
+    const tokenAmount = BigInt(Math.round(Number(formatReward()) * 1e18));
+    const toAddress = account.replace(/^0x/i, '').padStart(64, '0');
+    const amountHex = tokenAmount.toString(16).padStart(64, '0');
+    const data = `0xa9059cbb${toAddress}${amountHex}`;
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: sender, to: rewardConfig.tokenAddress, data, value: '0x0' }]
+    });
+    console.log('Reward transfer submitted:', txHash);
+  } catch (error) {
+    console.warn('Reward transfer could not be submitted:', error.message || error);
+  }
 }
 $("connect-wallet").onclick = async () => {
   if (!window.ethereum?.isMetaMask) return $("wallet-status").textContent = "MetaMask is required to connect a wallet.";

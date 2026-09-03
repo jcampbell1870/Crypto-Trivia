@@ -1,5 +1,6 @@
 @page "/game"
 @using Crypto_Trivia.Services
+@inject IJSRuntime JS
 @inject GameService GameService
 @inject TokenRewardService TokenRewardService
 
@@ -141,8 +142,16 @@
                     </h4>
 
                     <div class="alert alert-info mt-4">
-                        <h5>1870Coin reward pending</h5>
-                        <p>An authorized 1870Coin distributor must send this reward to your connected wallet. This game never requests a transfer from your wallet.</p>
+                        <h5>1870Coin reward status</h5>
+                        <p>@if (string.IsNullOrWhiteSpace(RewardStatusMessage))
+                            {
+                                <span>An authorized 1870Coin distributor must send this reward to your connected wallet. This game never requests a transfer from your wallet.</span>
+                            }
+                            else
+                            {
+                                <span>@RewardStatusMessage</span>
+                            }
+                        </p>
                     </div>
 
                     <button class="btn btn-primary btn-lg mt-3" @onclick="PlayAgain">
@@ -161,10 +170,12 @@
     private List<Category> Categories = new();
     private int CurrentScore = 0;
     private decimal RewardAmount = 0;
-    private string WalletAddress;
-    private string SelectedCategory;
-    private Question SelectedQuestion;
+    private string WalletAddress = string.Empty;
+    private string SelectedCategory = string.Empty;
+    private Question? SelectedQuestion;
     private bool ShowAnswer = false;
+    private string RewardStatusMessage = string.Empty;
+    private bool RewardTransferInProgress = false;
 
     protected override void OnInitialized()
     {
@@ -194,8 +205,13 @@
         ShowAnswer = true;
     }
 
-    private void AnswerCorrect()
+    private async Task AnswerCorrect()
     {
+        if (SelectedQuestion == null)
+        {
+            return;
+        }
+
         GameService.AnswerQuestion(SelectedCategory, SelectedQuestion.Value);
         CurrentScore = GameService.GetPlayerScore();
         RewardAmount = TokenRewardService.CalculateRewardAmount(CurrentScore);
@@ -204,16 +220,18 @@
         if (GameService.IsGameOver())
         {
             GameState = GameStateEnum.GameOver;
+            await TryDistributeRewardAsync();
         }
     }
 
-    private void AnswerIncorrect()
+    private async Task AnswerIncorrect()
     {
         CloseQuestion();
 
         if (GameService.IsGameOver())
         {
             GameState = GameStateEnum.GameOver;
+            await TryDistributeRewardAsync();
         }
     }
 
@@ -224,6 +242,41 @@
         ShowAnswer = false;
     }
 
+    private async Task TryDistributeRewardAsync()
+    {
+        if (RewardTransferInProgress || string.IsNullOrWhiteSpace(WalletAddress) || RewardAmount <= 0)
+        {
+            return;
+        }
+
+        RewardTransferInProgress = true;
+        RewardStatusMessage = "Submitting the reward transfer...";
+
+        try
+        {
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
+            var result = await module.InvokeAsync<dynamic>("MetaMaskInterop.transferToken",
+                TokenRewardService.GetTokenContractAddress(),
+                WalletAddress,
+                (double)RewardAmount,
+                TokenRewardService.GetTokenDecimals(),
+                WalletAddress);
+
+            var success = result is not null && result["success"] == true;
+            RewardStatusMessage = success
+                ? "Reward transfer submitted to MetaMask. Transaction hash: " + (result["txHash"]?.ToString() ?? "pending")
+                : "Reward calculation is complete, but the transfer could not be submitted: " + (result?["error"]?.ToString() ?? "unknown error");
+        }
+        catch (Exception ex)
+        {
+            RewardStatusMessage = "Reward calculation is complete, but the transfer could not be submitted: " + ex.Message;
+        }
+        finally
+        {
+            RewardTransferInProgress = false;
+        }
+    }
+
     private void PlayAgain()
     {
         GameState = GameStateEnum.Initial;
@@ -231,6 +284,8 @@
         Categories = GameService.GetCategories();
         CurrentScore = 0;
         RewardAmount = 0;
+        RewardStatusMessage = string.Empty;
+        RewardTransferInProgress = false;
     }
 
     private void HandleWalletConnected(string address)
