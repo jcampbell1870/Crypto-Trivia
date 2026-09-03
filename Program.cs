@@ -7,10 +7,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddHttpClient();
+
 // Register game services
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<TokenRewardService>();
+builder.Services.AddSingleton<RewardIssuerService>();
 
 var app = builder.Build();
 
@@ -27,6 +30,21 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+app.MapGet("/api/issuer/health", () => Results.Ok(new
+{
+    status = "ok",
+    issuer = "Crypto Trivia Issuer"
+}));
+
+app.MapPost("/api/issuer/submit-score", (RewardIssuerService issuer, RewardSubmissionRequest request) =>
+{
+    var result = issuer.SubmitReward(request);
+    return result.Success
+        ? Results.Ok(result)
+        : Results.BadRequest(result);
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

@@ -1,6 +1,9 @@
 @page "/game"
 @using Crypto_Trivia.Services
+@using System.Net.Http.Json
 @inject IJSRuntime JS
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
 @inject GameService GameService
 @inject TokenRewardService TokenRewardService
 
@@ -249,37 +252,38 @@
             return;
         }
 
-        var treasuryAddress = TokenRewardService.GetRewardVaultAddress();
-        if (string.IsNullOrWhiteSpace(treasuryAddress))
-        {
-            RewardStatusMessage = "Reward vault is not configured. Set the treasury address before distributing rewards.";
-            return;
-        }
-
         RewardTransferInProgress = true;
-        RewardStatusMessage = "Submitting the reward transfer from the configured treasury...";
+        RewardStatusMessage = "Submitting the reward claim to the backend issuer...";
 
         try
         {
-            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/metamask-interop.js");
-            var result = await module.InvokeAsync<dynamic>("MetaMaskInterop.transferToken",
-                TokenRewardService.GetTokenContractAddress(),
-                WalletAddress,
-                (double)RewardAmount,
-                TokenRewardService.GetTokenDecimals(),
-                treasuryAddress);
+            var client = HttpClientFactory.CreateClient();
+            var endpoint = new Uri(NavigationManager.BaseUri).GetLeftPart(UriPartial.Authority) + "/api/issuer/submit-score";
+            var payload = new RewardSubmissionRequest
+            {
+                WalletAddress = WalletAddress,
+                Score = CurrentScore,
+                RewardAmount = RewardAmount
+            };
 
-            var success = result is not null && result["success"] == true;
-            var txHash = result is not null && result["txHash"] is not null ? result["txHash"].ToString() : "pending";
-            var errorText = result is not null && result["error"] is not null ? result["error"].ToString() : "unknown error";
+            var response = await client.PostAsJsonAsync(endpoint, payload);
+            var result = await response.Content.ReadFromJsonAsync<RewardSubmissionResponse>();
 
-            RewardStatusMessage = success
-                ? "Reward transfer submitted from the treasury wallet. Transaction hash: " + txHash
-                : "Reward calculation is complete, but the transfer could not be submitted: " + errorText;
+            if (response.IsSuccessStatusCode && result is not null && result.Success)
+            {
+                RewardStatusMessage = $"Reward claim issued by the backend issuer. Claim ID: {result.ClaimId}. Treasury: {result.TreasuryAddress}. Amount: {result.RewardAmount:F4} {TokenRewardService.GetTokenSymbol()}";
+            }
+            else
+            {
+                var message = result is not null && !string.IsNullOrWhiteSpace(result.Message)
+                    ? result.Message
+                    : "Reward calculation is complete, but the backend issuer rejected the claim.";
+                RewardStatusMessage = message;
+            }
         }
         catch (Exception ex)
         {
-            RewardStatusMessage = "Reward calculation is complete, but the transfer could not be submitted: " + ex.Message;
+            RewardStatusMessage = "Reward calculation is complete, but the backend issuer could not be reached: " + ex.Message;
         }
         finally
         {
