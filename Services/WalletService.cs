@@ -7,6 +7,7 @@ namespace Crypto_Trivia.Services
         private const string TokenContractAddress = "0xcF0A9F89ab34D39C11B5e08e1c6aC33A47e207c8";
         private const string TokenSymbol = "1870Coin";
         private const int TokenDecimals = 18;
+        private const string RewardVaultAddress = "0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d";
 
         public async Task<string> ConnectWalletAsync()
         {
@@ -27,6 +28,11 @@ namespace Crypto_Trivia.Services
         public int GetTokenDecimals()
         {
             return TokenDecimals;
+        }
+
+        public string GetRewardVaultAddress()
+        {
+            return RewardVaultAddress;
         }
     }
 
@@ -58,6 +64,11 @@ namespace Crypto_Trivia.Services
         public int GetTokenDecimals()
         {
             return _walletService.GetTokenDecimals();
+        }
+
+        public string GetRewardVaultAddress()
+        {
+            return _walletService.GetRewardVaultAddress();
         }
     }
 }

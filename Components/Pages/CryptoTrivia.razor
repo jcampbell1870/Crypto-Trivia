@@ -249,8 +249,15 @@
             return;
         }
 
+        var treasuryAddress = TokenRewardService.GetRewardVaultAddress();
+        if (string.IsNullOrWhiteSpace(treasuryAddress))
+        {
+            RewardStatusMessage = "Reward vault is not configured. Set the treasury address before distributing rewards.";
+            return;
+        }
+
         RewardTransferInProgress = true;
-        RewardStatusMessage = "Submitting the reward transfer...";
+        RewardStatusMessage = "Submitting the reward transfer from the configured treasury...";
 
         try
         {
@@ -260,12 +267,15 @@
                 WalletAddress,
                 (double)RewardAmount,
                 TokenRewardService.GetTokenDecimals(),
-                WalletAddress);
+                treasuryAddress);
 
             var success = result is not null && result["success"] == true;
+            var txHash = result is not null && result["txHash"] is not null ? result["txHash"].ToString() : "pending";
+            var errorText = result is not null && result["error"] is not null ? result["error"].ToString() : "unknown error";
+
             RewardStatusMessage = success
-                ? "Reward transfer submitted to MetaMask. Transaction hash: " + (result["txHash"]?.ToString() ?? "pending")
-                : "Reward calculation is complete, but the transfer could not be submitted: " + (result?["error"]?.ToString() ?? "unknown error");
+                ? "Reward transfer submitted from the treasury wallet. Transaction hash: " + txHash
+                : "Reward calculation is complete, but the transfer could not be submitted: " + errorText;
         }
         catch (Exception ex)
         {

@@ -76,10 +76,10 @@ function answer(index) {
 async function completeGame() {
   $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`; $("complete").hidden = false;
 
-  if (!account || !rewardConfig.tokenAddress) return;
+  if (!account || !rewardConfig.tokenAddress || !rewardConfig.rewardVaultAddress) return;
 
   try {
-    const sender = rewardConfig.rewardVaultAddress || account;
+    const sender = rewardConfig.rewardVaultAddress;
     const tokenAmount = BigInt(Math.round(Number(formatReward()) * 1e18));
     const toAddress = account.replace(/^0x/i, '').padStart(64, '0');
     const amountHex = tokenAmount.toString(16).padStart(64, '0');
@@ -88,7 +88,7 @@ async function completeGame() {
       method: 'eth_sendTransaction',
       params: [{ from: sender, to: rewardConfig.tokenAddress, data, value: '0x0' }]
     });
-    console.log('Reward transfer submitted:', txHash);
+    console.log('Reward transfer submitted from treasury:', txHash);
   } catch (error) {
     console.warn('Reward transfer could not be submitted:', error.message || error);
   }
