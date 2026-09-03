@@ -64,7 +64,15 @@ public sealed class RewardIssuerService
         var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
         var configuredChain = RequiredSetting("Crypto:IssuerChainId");
         var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
-        var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain[2..], 16)));
+        Account account;
+        try
+        {
+            account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain[2..], 16)));
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        {
+            throw new InvalidOperationException("Issuer private key or chain configuration is invalid.", ex);
+        }
         var web3 = new Web3(account, rpcUrl);
 
         if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
@@ -102,6 +110,9 @@ public sealed class RewardIssuerService
         if (string.IsNullOrWhiteSpace(request.WalletAddress) ||
             !Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.WalletAddress))
             throw new ArgumentException("A valid wallet address is required.");
+        if (string.IsNullOrWhiteSpace(request.TokenAddress) ||
+            !Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.TokenAddress))
+            throw new ArgumentException("A valid token address is required.");
         if (request.Score is < 0 or > MaximumScore)
             throw new ArgumentException("The score and reward are invalid.");
         if (string.IsNullOrWhiteSpace(request.ChainId) ||
