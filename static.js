@@ -75,6 +75,31 @@ function answer(index) {
 }
 function completeGame() {
   $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`; $("complete").hidden = false;
+  submitReward();
+}
+
+async function submitReward() {
+  const status = $("payout-status");
+  const amount = Number(formatReward());
+  if (!rewardConfig.rewardIssuerUrl) return status.textContent = "Reward issuer is not configured.";
+  if (!account) return status.textContent = "Connect a wallet to receive your reward.";
+  if (amount <= 0) return status.textContent = "No reward earned this game.";
+  status.textContent = "Submitting your score to the reward issuer…";
+  try {
+    const response = await fetch(`${rewardConfig.rewardIssuerUrl}/api/issuer/submit-score`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: account, score, rewardAmount: amount })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && result.success !== false) {
+      status.textContent = `Reward submitted to the issuer${result.transactionHash ? ` — tx ${result.transactionHash}` : ""}. The treasury pays ${amount} ${rewardConfig.tokenSymbol} to your wallet.`;
+    } else {
+      status.textContent = `Reward submission was not accepted${result.message ? `: ${result.message}` : "."}`;
+    }
+  } catch {
+    status.textContent = "Could not reach the reward issuer. Your calculated reward is shown above.";
+  }
 }
 $("connect-wallet").onclick = async () => {
   if (!window.ethereum?.isMetaMask) return $("wallet-status").textContent = "MetaMask is required to connect a wallet.";
@@ -82,4 +107,4 @@ $("connect-wallet").onclick = async () => {
   catch { $("wallet-status").textContent = "Wallet connection was not approved."; }
 };
 $("start-game").onclick = () => { $("welcome").hidden = true; $("game").hidden = false; drawBoard(); };
-$("play-again").onclick = () => { score = answered = 0; categories.forEach(([, clues]) => clues.forEach(clue => delete clue.used)); $("score").textContent = 0; $("reward").textContent = "0.0000"; $("complete").hidden = true; $("welcome").hidden = false; };
+$("play-again").onclick = () => { score = answered = 0; categories.forEach(([, clues]) => clues.forEach(clue => delete clue.used)); $("score").textContent = 0; $("reward").textContent = "0.0000"; $("payout-status").textContent = ""; $("complete").hidden = true; $("welcome").hidden = false; };
