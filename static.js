@@ -46,9 +46,10 @@ const categories = [
   ]]
 ];
 
-let account = "", score = 0, answered = 0, active;
+let account = "", score = 0, answered = 0, active, gameId;
 const $ = (id) => document.getElementById(id);
 const formatReward = () => (score * rewardPerPoint).toFixed(4);
+const claimButton = $("claim-reward");
 
 function drawBoard() {
   const board = $("board"); board.replaceChildren();
@@ -74,12 +75,34 @@ function answer(index) {
   if (answered === 30) completeGame();
 }
 function completeGame() {
-  $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`; $("complete").hidden = false;
+  $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`;
+  $("claim-status").textContent = rewardConfig.rewardIssuerUrl ? "Submit your completed game to request the treasury payout." : "Reward issuer is not configured; your reward is calculated but cannot be deposited yet.";
+  claimButton.disabled = !rewardConfig.rewardIssuerUrl;
+  $("complete").hidden = false;
 }
+claimButton.onclick = async () => {
+  claimButton.disabled = true;
+  $("claim-status").textContent = "Submitting reward request…";
+  try {
+    const response = await fetch(`${rewardConfig.rewardIssuerUrl.replace(/\/$/, "")}/api/issuer/submit-score`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gameId, walletAddress: account, score, reward: score * rewardPerPoint, chainId: rewardConfig.chainId, tokenAddress: rewardConfig.tokenAddress })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.message || `Request failed (${response.status})`);
+    $("claim-status").textContent = result.transactionHash
+      ? `Reward sent. Transaction: ${result.transactionHash}`
+      : "Reward request accepted. The authorized treasury will send your tokens after verification.";
+  } catch (error) {
+    claimButton.disabled = false;
+    $("claim-status").textContent = `Reward request failed: ${error.message}`;
+  }
+};
 $("connect-wallet").onclick = async () => {
   if (!window.ethereum?.isMetaMask) return $("wallet-status").textContent = "MetaMask is required to connect a wallet.";
   try { [account] = await window.ethereum.request({ method: "eth_requestAccounts" }); $("wallet-status").textContent = `Connected: ${account.slice(0, 6)}…${account.slice(-4)}`; $("start-game").disabled = false; }
   catch { $("wallet-status").textContent = "Wallet connection was not approved."; }
 };
-$("start-game").onclick = () => { $("welcome").hidden = true; $("game").hidden = false; drawBoard(); };
+$("start-game").onclick = () => { gameId = crypto.randomUUID(); $("welcome").hidden = true; $("game").hidden = false; drawBoard(); };
 $("play-again").onclick = () => { score = answered = 0; categories.forEach(([, clues]) => clues.forEach(clue => delete clue.used)); $("score").textContent = 0; $("reward").textContent = "0.0000"; $("complete").hidden = true; $("welcome").hidden = false; };

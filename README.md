@@ -131,7 +131,7 @@ Edit `appsettings.json` to modify:
 5. **Reveal Answer**: Click "Reveal Answer" button in the modal
 6. **Answer**: Select "Got it right!" or "Got it wrong!"
 7. **Game Over**: Note the 1870Coin reward calculated for your connected wallet
-8. **Collect Rewards**: An authorized 1870Coin distributor sends the reward; the game never asks your wallet to transfer tokens.
+8. **Claim Rewards**: Click **Claim reward** after the game finishes. The completion is submitted to the configured issuer, which verifies the score and sends tokens from its funded treasury; the game never asks your wallet to transfer tokens.
 
 ## Smart Contract Interaction
 
@@ -148,7 +148,7 @@ The root `index.html` is a self-contained static version of the game and is depl
 
 Configure the custom domain in **GitHub Pages** first, then create the corresponding DNS record in Cloudflare with proxying disabled during GitHub verification. GitHub writes the custom-domain value to a `CNAME` file; do not commit a placeholder domain.
 
-The static game uses the same secure model as Crypto Chess: a pre-funded reward vault and a Render-hosted issuer verify a finished game and issue a signed claim. The treasury address and issuer URL are intentionally empty in `js/config.js` because they are not publicly configured in Crypto Chess. Set them to the existing deployed vault and Render issuer endpoint only after the issuer accepts Crypto Trivia's completion payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare.
+The static game uses a pre-funded reward vault and an issuer endpoint to verify a finished game and send a payout. Set `rewardIssuerUrl` in `js/config.js` to the deployed issuer base URL only after it accepts the `/api/issuer/submit-score` payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare. If the URL is empty, the game will correctly show the calculated reward as pending rather than pretending that tokens were deposited.
 
 ### ERC-20 Transfer ABI
 
