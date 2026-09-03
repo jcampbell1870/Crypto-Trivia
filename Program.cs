@@ -13,6 +13,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<TokenRewardService>();
+builder.Services.AddSingleton<TreasuryPayoutService>();
 builder.Services.AddSingleton<RewardIssuerService>();
 
 var app = builder.Build();
@@ -37,9 +38,9 @@ app.MapGet("/api/issuer/health", () => Results.Ok(new
     issuer = "Crypto Trivia Issuer"
 }));
 
-app.MapPost("/api/issuer/submit-score", (RewardIssuerService issuer, RewardSubmissionRequest request) =>
+app.MapPost("/api/issuer/submit-score", async (RewardIssuerService issuer, RewardSubmissionRequest request) =>
 {
-    var result = issuer.SubmitReward(request);
+    var result = await issuer.SubmitRewardAsync(request);
     return result.Success
         ? Results.Ok(result)
         : Results.BadRequest(result);

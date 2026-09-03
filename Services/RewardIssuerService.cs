@@ -25,13 +25,15 @@ public sealed class RewardSubmissionResponse
 public sealed class RewardIssuerService
 {
     private readonly IConfiguration _configuration;
+    private readonly TreasuryPayoutService _treasuryPayoutService;
 
-    public RewardIssuerService(IConfiguration configuration)
+    public RewardIssuerService(IConfiguration configuration, TreasuryPayoutService treasuryPayoutService)
     {
         _configuration = configuration;
+        _treasuryPayoutService = treasuryPayoutService;
     }
 
-    public RewardSubmissionResponse SubmitReward(RewardSubmissionRequest request)
+    public async Task<RewardSubmissionResponse> SubmitRewardAsync(RewardSubmissionRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.WalletAddress))
         {
@@ -52,6 +54,7 @@ public sealed class RewardIssuerService
         var rewardAmount = request.RewardAmount > 0 ? request.RewardAmount : request.Score * rewardPerPoint;
         var treasuryAddress = _configuration["Crypto:RewardVaultAddress"] ??
                               _configuration["RewardVaultAddress"] ??
+                              _configuration["Treasury:Address"] ??
                               "0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d";
 
         if (string.IsNullOrWhiteSpace(treasuryAddress))
@@ -81,13 +84,28 @@ public sealed class RewardIssuerService
         };
 
         var payloadJson = JsonSerializer.Serialize(claimPayload);
-        var signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(signingKey), Encoding.UTF8.GetBytes(payloadJson))) ;
+        var signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(signingKey), Encoding.UTF8.GetBytes(payloadJson))); 
         var claimToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(payloadJson + "." + signature));
+
+        var payoutResult = await _treasuryPayoutService.ExecuteTransferAsync(request.WalletAddress, rewardAmount, 18);
+        if (!payoutResult.Success)
+        {
+            return new RewardSubmissionResponse
+            {
+                Success = false,
+                Message = "Reward claim was created but payout failed: " + payoutResult.Message,
+                RewardAmount = rewardAmount,
+                ClaimId = claimId,
+                ClaimToken = claimToken,
+                TreasuryAddress = treasuryAddress,
+                IssuerName = issuerName
+            };
+        }
 
         return new RewardSubmissionResponse
         {
             Success = true,
-            Message = "Reward claim issued successfully by the backend issuer.",
+            Message = "Reward claim issued successfully by the backend issuer and paid from the treasury wallet.",
             RewardAmount = rewardAmount,
             ClaimId = claimId,
             ClaimToken = claimToken,
