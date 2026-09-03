@@ -1,0 +1,78 @@
+using System.Collections.Concurrent;
+using Nethereum.Hex.HexTypes;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+
+namespace Crypto_Trivia.Services;
+
+public sealed record RewardClaimRequest(
+    string GameId,
+    string WalletAddress,
+    int Score,
+    decimal Reward,
+    string ChainId,
+    string TokenAddress);
+
+public sealed record RewardClaimResponse(string Status, string? TransactionHash = null);
+
+public sealed class RewardIssuerService
+{
+    private readonly IConfiguration _configuration;
+    private readonly ConcurrentDictionary<string, string> _claims = new();
+
+    public RewardIssuerService(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    public async Task<RewardClaimResponse> SubmitAsync(RewardClaimRequest request, CancellationToken cancellationToken)
+    {
+        Validate(request);
+
+        if (_claims.TryGetValue(request.GameId, out var existingHash))
+            return new("already_submitted", existingHash);
+
+        var rpcUrl = RequiredSetting("Crypto:IssuerRpcUrl");
+        var privateKey = RequiredSetting("Crypto:IssuerPrivateKey");
+        var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
+        var configuredChain = RequiredSetting("Crypto:IssuerChainId");
+        var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
+        var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain, 16)));
+        var web3 = new Web3(account, rpcUrl);
+
+        if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Issuer key does not control the configured reward treasury.");
+        if (!string.Equals(request.TokenAddress, configuredToken, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(request.ChainId, configuredChain, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Token or network does not match issuer configuration.");
+
+        var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
+        var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(request.Reward, decimals);
+        var transferData = "0xa9059cbb" + request.WalletAddress[2..].PadLeft(64, '0') + rewardUnits.ToString("x").PadLeft(64, '0');
+        var txHash = await web3.Eth.Transactions.SendTransaction.SendRequestAsync(
+            new Nethereum.RPC.Eth.DTOs.TransactionInput
+            {
+                From = account.Address,
+                To = configuredToken,
+                Data = transferData
+            });
+
+        _claims.TryAdd(request.GameId, txHash);
+        return new("submitted", txHash);
+    }
+
+    private void Validate(RewardClaimRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.GameId) || request.GameId.Length > 100)
+            throw new ArgumentException("A valid game ID is required.");
+        if (!Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.WalletAddress))
+            throw new ArgumentException("A valid wallet address is required.");
+        if (request.Score is < 0 or > 3750 || request.Reward != request.Score * _configuration.GetValue("Crypto:RewardPerPoint", 0.01m))
+            throw new ArgumentException("The score and reward are invalid.");
+        if (!request.ChainId.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("A valid chain ID is required.");
+    }
+
+    private string RequiredSetting(string key) =>
+        _configuration[key] ?? throw new InvalidOperationException($"{key} is not configured.");
+}

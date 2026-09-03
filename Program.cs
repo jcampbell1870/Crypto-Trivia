@@ -1,5 +1,6 @@
 using Crypto_Trivia.Components;
 using Crypto_Trivia.Services;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,18 @@ builder.Services.AddRazorComponents()
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<TokenRewardService>();
+builder.Services.AddSingleton<RewardIssuerService>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("issuer", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
 
 var app = builder.Build();
 
@@ -25,6 +38,26 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();
+app.UseRateLimiter();
+
+app.MapPost("/api/issuer/submit-score", async (
+    RewardClaimRequest request,
+    RewardIssuerService issuer,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        return Results.Ok(await issuer.SubmitAsync(request, cancellationToken));
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+}).RequireRateLimiting("issuer");
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
