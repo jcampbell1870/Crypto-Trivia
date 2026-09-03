@@ -17,6 +17,10 @@ public sealed class RewardSubmissionResponse
     public string TransactionHash { get; set; } = string.Empty;
     public string TreasuryAddress { get; set; } = string.Empty;
     public string IssuerName { get; set; } = string.Empty;
+
+    // True when the failure was caused by the client's request (400);
+    // false for upstream/configuration failures (502).
+    public bool IsClientError { get; set; } = true;
 }
 
 public sealed class RewardIssuerService
@@ -34,37 +38,45 @@ public sealed class RewardIssuerService
     {
         if (string.IsNullOrWhiteSpace(request.WalletAddress))
         {
-            return Failure("Wallet address is required.");
+            return ClientFailure("Wallet address is required.");
         }
 
         if (!IsValidAddress(request.WalletAddress))
         {
-            return Failure("Wallet address is invalid.");
+            return ClientFailure("Wallet address is invalid.");
         }
 
         if (request.Score < 0)
         {
-            return Failure("Score cannot be negative.");
+            return ClientFailure("Score cannot be negative.");
         }
 
+        var maxScore = _configuration.GetValue<int>("Crypto:MaxScore", 7500);
+        if (request.Score > maxScore)
+        {
+            return ClientFailure($"Score exceeds the maximum allowed ({maxScore}).");
+        }
+
+        // Always compute the reward server-side from the validated score;
+        // never trust a client-supplied amount.
         var rewardPerPoint = _configuration.GetValue<decimal>("Crypto:RewardPerPoint", 0.01m);
-        var rewardAmount = request.RewardAmount > 0 ? request.RewardAmount : request.Score * rewardPerPoint;
+        var rewardAmount = request.Score * rewardPerPoint;
         if (rewardAmount <= 0m)
         {
-            return Failure("Reward amount must be greater than zero.");
+            return ClientFailure("No reward earned for the submitted score.");
         }
 
         var treasuryAddress = _configuration["Crypto:RewardVaultAddress"] ?? string.Empty;
         if (!IsValidAddress(treasuryAddress))
         {
-            return Failure("Treasury wallet is not configured.");
+            return ServerFailure("Treasury wallet is not configured.");
         }
 
         var issuerUrl = _configuration["Issuer:BaseUrl"] ?? string.Empty;
         var issuerName = _configuration["Issuer:IssuerName"] ?? "Crypto Trivia Issuer";
         if (string.IsNullOrWhiteSpace(issuerUrl))
         {
-            return Failure("Reward issuer is not configured.");
+            return ServerFailure("Reward issuer is not configured.");
         }
 
         var payload = new
@@ -99,7 +111,7 @@ public sealed class RewardIssuerService
 
             if (!response.IsSuccessStatusCode)
             {
-                return Failure(message ?? $"Reward issuer rejected the submission ({(int)response.StatusCode}).");
+                return ServerFailure($"Reward issuer rejected the submission ({(int)response.StatusCode}).");
             }
 
             return new RewardSubmissionResponse
@@ -112,14 +124,17 @@ public sealed class RewardIssuerService
                 IssuerName = issuerName
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return Failure($"Could not reach the reward issuer: {ex.Message}");
+            return ServerFailure("Could not reach the reward issuer.");
         }
     }
 
-    private static RewardSubmissionResponse Failure(string message) =>
-        new() { Success = false, Message = message };
+    private static RewardSubmissionResponse ClientFailure(string message) =>
+        new() { Success = false, Message = message, IsClientError = true };
+
+    private static RewardSubmissionResponse ServerFailure(string message) =>
+        new() { Success = false, Message = message, IsClientError = false };
 
     private static bool IsValidAddress(string value) =>
         !string.IsNullOrWhiteSpace(value) &&

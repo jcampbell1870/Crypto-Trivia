@@ -31,18 +31,23 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-app.MapGet("/api/issuer/health", () => Results.Ok(new
+app.MapGet("/api/issuer/health", (IConfiguration configuration) => Results.Ok(new
 {
     status = "ok",
-    issuer = "Crypto Trivia Issuer"
+    issuer = configuration["Issuer:IssuerName"] ?? "Crypto Trivia Issuer"
 }));
 
 app.MapPost("/api/issuer/submit-score", async (RewardIssuerService issuer, RewardSubmissionRequest request) =>
 {
     var result = await issuer.SubmitRewardAsync(request);
-    return result.Success
-        ? Results.Ok(result)
-        : Results.BadRequest(result);
+    if (result.Success)
+    {
+        return Results.Ok(result);
+    }
+
+    return result.IsClientError
+        ? Results.BadRequest(result)
+        : Results.Json(result, statusCode: StatusCodes.Status502BadGateway);
 });
 
 app.MapRazorComponents<App>()
