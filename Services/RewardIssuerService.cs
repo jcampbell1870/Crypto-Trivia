@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
@@ -18,21 +18,36 @@ public sealed class RewardIssuerService
 {
     private const int MaximumScore = 3750; // 25 questions with values from 100 through 500.
     private readonly IConfiguration _configuration;
-    private readonly ConcurrentDictionary<string, string> _claims = new();
+    private readonly IDbContextFactory<RewardClaimDbContext> _dbFactory;
 
-    public RewardIssuerService(IConfiguration configuration)
+    public RewardIssuerService(IConfiguration configuration, IDbContextFactory<RewardClaimDbContext> dbFactory)
     {
         _configuration = configuration;
+        _dbFactory = dbFactory;
     }
 
     public async Task<RewardClaimResponse> SubmitAsync(RewardClaimRequest request, CancellationToken cancellationToken)
     {
         var expectedReward = Validate(request);
 
-        if (_claims.TryGetValue(request.GameId, out var existingHash))
-            return new("already_submitted", existingHash == "pending" ? null : existingHash);
-        if (!_claims.TryAdd(request.GameId, "pending"))
-            return new("already_submitted");
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        await db.Database.EnsureCreatedAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var claim = await db.Claims.SingleOrDefaultAsync(item => item.GameId == request.GameId, cancellationToken);
+        if (claim is not null)
+            return new("already_submitted", claim.TransactionHash);
+        claim = new RewardClaim
+        {
+            GameId = request.GameId,
+            WalletAddress = request.WalletAddress,
+            Score = request.Score,
+            ChainId = request.ChainId,
+            TokenAddress = request.TokenAddress,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.Claims.Add(claim);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         try
         {
@@ -64,12 +79,15 @@ public sealed class RewardIssuerService
                     Data = transferData
                 });
 
-            _claims[request.GameId] = txHash;
+            await using var updateDb = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            claim.Status = "submitted";
+            claim.TransactionHash = txHash;
+            updateDb.Claims.Update(claim);
+            await updateDb.SaveChangesAsync(cancellationToken);
             return new("submitted", txHash);
         }
         catch
         {
-            _claims.TryRemove(request.GameId, out _);
             throw;
         }
     }

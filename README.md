@@ -160,7 +160,9 @@ Crypto__IssuerPrivateKey=the-private-key-for-the-treasury-wallet
 Crypto__IssuerAllowedOrigin=https://jcampbell1870.github.io
 ```
 
-The private key must derive to the configured `Crypto:RewardVaultAddress`; the API refuses to send if it does not. The treasury must hold 1870Coin and enough ETH for gas, and the token contract must authorize transfers from that treasury. Set `rewardIssuerUrl` to the public API origin (for example, `https://issuer.example.com`) and set `Crypto__IssuerAllowedOrigin` to the exact static game origin. Do not put the private key in `appsettings.json`, source control, or GitHub Pages. The sample uses in-memory replay protection; use a durable, atomic claim store before running multiple issuer instances or relying on replay protection across restarts.
+The private key must derive to the configured `Crypto:RewardVaultAddress`; the API refuses to send if it does not. The treasury must hold 1870Coin and enough ETH for gas, and the token contract must authorize transfers from that treasury. Set `rewardIssuerUrl` to the public API origin (for example, `https://issuer.example.com`) and set `Crypto__IssuerAllowedOrigin` to the exact static game origin. Do not put the private key in `appsettings.json`, source control, or GitHub Pages.
+
+Reward claims are persisted in SQLite at `reward-claims.db` (or the configured `ConnectionStrings:Rewards` path). The database creates a unique record for each game ID before submitting a transfer, so restarts and multiple application instances cannot submit the same game twice. Use a persistent volume or managed database in production, back up the database, and reconcile claims left in `pending` status before manually retrying a transfer.
 
 ### ERC-20 Transfer ABI
 

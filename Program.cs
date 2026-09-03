@@ -1,6 +1,7 @@
 using Crypto_Trivia.Components;
 using Crypto_Trivia.Services;
 using System.Threading.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<WalletService>();
 builder.Services.AddScoped<TokenRewardService>();
 builder.Services.AddSingleton<RewardIssuerService>();
+builder.Services.AddDbContextFactory<RewardClaimDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("Rewards") ?? "Data Source=reward-claims.db"));
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("issuer", context => RateLimitPartition.GetFixedWindowLimiter(
