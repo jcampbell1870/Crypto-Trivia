@@ -76,7 +76,9 @@ function answer(index) {
 }
 function completeGame() {
   $("game").hidden = true; $("final-score").textContent = score; $("final-reward").textContent = `${formatReward()} ${rewardConfig.tokenSymbol}`;
-  $("claim-status").textContent = rewardConfig.rewardIssuerUrl ? "Submit your completed game to request the treasury payout." : "Reward issuer is not configured; your reward is calculated but cannot be deposited yet.";
+  $("claim-status").textContent = rewardConfig.rewardIssuerUrl
+    ? "Submit your completed game to request the treasury payout."
+    : `Reward issuer is not configured; your reward is calculated but cannot be deposited from treasury ${rewardConfig.rewardVaultAddress}.`;
   claimButton.disabled = !rewardConfig.rewardIssuerUrl;
   $("complete").hidden = false;
 }

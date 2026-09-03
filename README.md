@@ -148,7 +148,7 @@ The root `index.html` is a self-contained static version of the game and is depl
 
 Configure the custom domain in **GitHub Pages** first, then create the corresponding DNS record in Cloudflare with proxying disabled during GitHub verification. GitHub writes the custom-domain value to a `CNAME` file; do not commit a placeholder domain.
 
-The static game uses a pre-funded reward vault and an issuer endpoint to verify a finished game and send a payout. Set `rewardIssuerUrl` in `js/config.js` to the deployed issuer base URL only after it accepts the `/api/issuer/submit-score` payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare. If the URL is empty, the game will correctly show the calculated reward as pending rather than pretending that tokens were deposited.
+The static game uses the configured public reward treasury `0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d` and an issuer endpoint to verify a finished game and send a payout. Set `rewardIssuerUrl` in `js/config.js` to the deployed issuer base URL only after it accepts the `/api/issuer/submit-score` payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare. If the URL is empty, the game will correctly show the calculated reward as pending rather than pretending that tokens were deposited.
 
 ### ERC-20 Transfer ABI
 
