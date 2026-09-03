@@ -30,35 +30,48 @@ public sealed class RewardIssuerService
         Validate(request);
 
         if (_claims.TryGetValue(request.GameId, out var existingHash))
-            return new("already_submitted", existingHash);
+            return new("already_submitted", existingHash == "pending" ? null : existingHash);
+        if (!_claims.TryAdd(request.GameId, "pending"))
+            return new("already_submitted");
 
-        var rpcUrl = RequiredSetting("Crypto:IssuerRpcUrl");
-        var privateKey = RequiredSetting("Crypto:IssuerPrivateKey");
-        var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
-        var configuredChain = RequiredSetting("Crypto:IssuerChainId");
-        var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
-        var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain, 16)));
-        var web3 = new Web3(account, rpcUrl);
+        try
+        {
+            var rpcUrl = RequiredSetting("Crypto:IssuerRpcUrl");
+            var privateKey = RequiredSetting("Crypto:IssuerPrivateKey");
+            var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
+            var configuredChain = RequiredSetting("Crypto:IssuerChainId");
+            var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
+            var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain, 16)));
+            var web3 = new Web3(account, rpcUrl);
 
-        if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Issuer key does not control the configured reward treasury.");
-        if (!string.Equals(request.TokenAddress, configuredToken, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(request.ChainId, configuredChain, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Token or network does not match issuer configuration.");
+            if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Issuer key does not control the configured reward treasury.");
+            if (!string.Equals(request.TokenAddress, configuredToken, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(request.ChainId, configuredChain, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Token or network does not match issuer configuration.");
 
-        var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
-        var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(request.Reward, decimals);
-        var transferData = "0xa9059cbb" + request.WalletAddress[2..].PadLeft(64, '0') + rewardUnits.ToString("x").PadLeft(64, '0');
-        var txHash = await web3.Eth.Transactions.SendTransaction.SendRequestAsync(
-            new Nethereum.RPC.Eth.DTOs.TransactionInput
-            {
-                From = account.Address,
-                To = configuredToken,
-                Data = transferData
-            });
+            var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
+            var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(request.Reward, decimals);
+            var rewardHex = Convert.ToHexString(rewardUnits.ToByteArray(isUnsigned: true, isBigEndian: true)).ToLowerInvariant();
+            if (rewardHex.Length > 64)
+                throw new InvalidOperationException("The reward amount is too large.");
+            var transferData = "0xa9059cbb" + request.WalletAddress[2..].PadLeft(64, '0') + rewardHex.PadLeft(64, '0');
+            var txHash = await web3.Eth.Transactions.SendTransaction.SendRequestAsync(
+                new Nethereum.RPC.Eth.DTOs.TransactionInput
+                {
+                    From = account.Address,
+                    To = configuredToken,
+                    Data = transferData
+                });
 
-        _claims.TryAdd(request.GameId, txHash);
-        return new("submitted", txHash);
+            _claims[request.GameId] = txHash;
+            return new("submitted", txHash);
+        }
+        catch
+        {
+            _claims.TryRemove(request.GameId, out _);
+            throw;
+        }
     }
 
     private void Validate(RewardClaimRequest request)
