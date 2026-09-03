@@ -13,6 +13,7 @@
     <PackageReference Include="Nethereum.Web3" Version="5.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
   </ItemGroup>
 
 </Project>
