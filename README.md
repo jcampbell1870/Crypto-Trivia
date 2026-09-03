@@ -148,7 +148,9 @@ The root `index.html` is a self-contained static version of the game and is depl
 
 Configure the custom domain in **GitHub Pages** first, then create the corresponding DNS record in Cloudflare with proxying disabled during GitHub verification. GitHub writes the custom-domain value to a `CNAME` file; do not commit a placeholder domain.
 
-The static game uses the same secure model as Crypto Chess: a pre-funded reward vault and a Render-hosted issuer verify a finished game and issue a signed claim. The treasury address and issuer URL are intentionally empty in `js/config.js` because they are not publicly configured in Crypto Chess. Set them to the existing deployed vault and Render issuer endpoint only after the issuer accepts Crypto Trivia's completion payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare.
+The static game uses the same secure model as Crypto Chess: a pre-funded reward vault and a Render-hosted issuer verify a finished game and issue a payout. `js/config.js` is configured to the shared treasury (`0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d`) and the Render issuer endpoint (`https://crypto-chess-vp7o.onrender.com`). On game completion the static game posts the score to the issuer's `/api/issuer/submit-score` endpoint and displays the payout status. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare.
+
+The Blazor server backend exposes the same flow through `/api/issuer/health` and `/api/issuer/submit-score`, forwarding verified submissions to the configured Render issuer (`Issuer:BaseUrl` in `appsettings.json`).
 
 ### ERC-20 Transfer ABI
 

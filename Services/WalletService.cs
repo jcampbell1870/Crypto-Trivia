@@ -4,9 +4,12 @@ namespace Crypto_Trivia.Services
 {
     public class WalletService
     {
-        private const string TokenContractAddress = "0xcF0A9F89ab34D39C11B5e08e1c6aC33A47e207c8";
-        private const string TokenSymbol = "1870Coin";
-        private const int TokenDecimals = 18;
+        private readonly IConfiguration _configuration;
+
+        public WalletService(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
 
         public async Task<string> ConnectWalletAsync()
         {
@@ -16,33 +19,45 @@ namespace Crypto_Trivia.Services
 
         public string GetTokenContractAddress()
         {
-            return TokenContractAddress;
+            return _configuration["Crypto:TokenContractAddress"] ?? "0xcF0A9F89ab34D39C11B5e08e1c6aC33A47e207c8";
         }
 
         public string GetTokenSymbol()
         {
-            return TokenSymbol;
+            return _configuration["Crypto:TokenSymbol"] ?? "1870Coin";
         }
 
         public int GetTokenDecimals()
         {
-            return TokenDecimals;
+            return _configuration.GetValue<int>("Crypto:TokenDecimals", 18);
+        }
+
+        public string GetRewardVaultAddress()
+        {
+            return _configuration["Crypto:RewardVaultAddress"] ?? string.Empty;
+        }
+
+        public string GetRewardIssuerUrl()
+        {
+            return _configuration["Issuer:BaseUrl"] ?? string.Empty;
         }
     }
 
     public class TokenRewardService
     {
         private readonly WalletService _walletService;
-        private const decimal RewardPerPoint = 0.01m; // 0.01 tokens per point
+        private readonly IConfiguration _configuration;
 
-        public TokenRewardService(WalletService walletService)
+        public TokenRewardService(WalletService walletService, IConfiguration configuration)
         {
             _walletService = walletService;
+            _configuration = configuration;
         }
 
         public decimal CalculateRewardAmount(int score)
         {
-            return score * RewardPerPoint;
+            var rewardPerPoint = _configuration.GetValue<decimal>("Crypto:RewardPerPoint", 0.01m);
+            return score * rewardPerPoint;
         }
 
         public string GetTokenContractAddress()
