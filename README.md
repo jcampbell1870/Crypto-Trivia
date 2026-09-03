@@ -150,6 +150,18 @@ Configure the custom domain in **GitHub Pages** first, then create the correspon
 
 The static game uses the configured public reward treasury `0x1e4f6e4a382adbdb662733a19ae773d3ab8f497d` and an issuer endpoint to verify a finished game and send a payout. Set `rewardIssuerUrl` in `js/config.js` to the deployed issuer base URL only after it accepts the `/api/issuer/submit-score` payload and enforces server-side replay protection, score limits, and wallet ownership. Never put a treasury or signer private key in this repository, GitHub Pages, or Cloudflare. If the URL is empty, the game will correctly show the calculated reward as pending rather than pretending that tokens were deposited.
 
+### Issuer deployment
+
+Run the ASP.NET application as the issuer API and provide these secrets through the hosting platform's environment settings:
+
+```text
+Crypto__IssuerRpcUrl=https://your-ethereum-rpc.example
+Crypto__IssuerPrivateKey=the-private-key-for-the-treasury-wallet
+Crypto__IssuerAllowedOrigin=https://jcampbell1870.github.io
+```
+
+The private key must derive to the configured `Crypto:RewardVaultAddress`; the API refuses to send if it does not. The treasury must hold 1870Coin and enough ETH for gas, and the token contract must authorize transfers from that treasury. Set `rewardIssuerUrl` to the public API origin (for example, `https://issuer.example.com`) and set `Crypto__IssuerAllowedOrigin` to the exact static game origin. Do not put the private key in `appsettings.json`, source control, or GitHub Pages. The sample uses in-memory replay protection; use a durable, atomic claim store before running multiple issuer instances or relying on replay protection across restarts.
+
 ### ERC-20 Transfer ABI
 
 The application implements the ERC-20 `transfer` function:

@@ -24,6 +24,12 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 });
+builder.Services.AddCors(options => options.AddPolicy("game", policy =>
+{
+        var origin = builder.Configuration["Crypto:IssuerAllowedOrigin"];
+        if (!string.IsNullOrWhiteSpace(origin))
+            policy.WithOrigins(origin).AllowAnyHeader().AllowAnyMethod();
+}));
 
 var app = builder.Build();
 
@@ -39,6 +45,7 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 app.UseRateLimiter();
+app.UseCors("game");
 
 app.MapPost("/api/issuer/submit-score", async (
     RewardClaimRequest request,
