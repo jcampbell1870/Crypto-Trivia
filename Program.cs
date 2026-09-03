@@ -1,6 +1,7 @@
 using Crypto_Trivia.Components;
 using Crypto_Trivia.Services;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,8 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 });
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
 builder.Services.AddCors(options => options.AddPolicy("game", policy =>
 {
         var origin = builder.Configuration["Crypto:IssuerAllowedOrigin"];
@@ -44,6 +47,7 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();
+app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseCors("game");
 

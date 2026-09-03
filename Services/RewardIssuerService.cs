@@ -27,7 +27,7 @@ public sealed class RewardIssuerService
 
     public async Task<RewardClaimResponse> SubmitAsync(RewardClaimRequest request, CancellationToken cancellationToken)
     {
-        Validate(request);
+        var expectedReward = Validate(request);
 
         if (_claims.TryGetValue(request.GameId, out var existingHash))
             return new("already_submitted", existingHash == "pending" ? null : existingHash);
@@ -41,7 +41,7 @@ public sealed class RewardIssuerService
             var configuredToken = RequiredSetting("Crypto:TokenContractAddress");
             var configuredChain = RequiredSetting("Crypto:IssuerChainId");
             var configuredTreasury = RequiredSetting("Crypto:RewardVaultAddress");
-            var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain, 16)));
+            var account = new Account(privateKey, new HexBigInteger(Convert.ToInt64(configuredChain[2..], 16)));
             var web3 = new Web3(account, rpcUrl);
 
             if (!string.Equals(account.Address, configuredTreasury, StringComparison.OrdinalIgnoreCase))
@@ -51,7 +51,7 @@ public sealed class RewardIssuerService
                 throw new InvalidOperationException("Token or network does not match issuer configuration.");
 
             var decimals = _configuration.GetValue("Crypto:TokenDecimals", 18);
-            var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(request.Reward, decimals);
+            var rewardUnits = Nethereum.Util.UnitConversion.Convert.ToWei(expectedReward, decimals);
             var rewardHex = Convert.ToHexString(rewardUnits.ToByteArray(isUnsigned: true, isBigEndian: true)).ToLowerInvariant();
             if (rewardHex.Length > 64)
                 throw new InvalidOperationException("The reward amount is too large.");
@@ -74,16 +74,19 @@ public sealed class RewardIssuerService
         }
     }
 
-    private void Validate(RewardClaimRequest request)
+    private decimal Validate(RewardClaimRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.GameId) || request.GameId.Length > 100)
             throw new ArgumentException("A valid game ID is required.");
-        if (!Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.WalletAddress))
+        if (string.IsNullOrWhiteSpace(request.WalletAddress) ||
+            !Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.WalletAddress))
             throw new ArgumentException("A valid wallet address is required.");
-        if (request.Score is < 0 or > 3750 || request.Reward != request.Score * _configuration.GetValue("Crypto:RewardPerPoint", 0.01m))
+        if (request.Score is < 0 or > 3750)
             throw new ArgumentException("The score and reward are invalid.");
-        if (!request.ChainId.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(request.ChainId) ||
+            !request.ChainId.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("A valid chain ID is required.");
+        return request.Score * _configuration.GetValue("Crypto:RewardPerPoint", 0.01m);
     }
 
     private string RequiredSetting(string key) =>
