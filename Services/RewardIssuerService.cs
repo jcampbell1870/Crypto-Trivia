@@ -9,7 +9,6 @@ public sealed record RewardClaimRequest(
     string GameId,
     string WalletAddress,
     int Score,
-    decimal Reward,
     string ChainId,
     string TokenAddress);
 
@@ -17,6 +16,7 @@ public sealed record RewardClaimResponse(string Status, string? TransactionHash 
 
 public sealed class RewardIssuerService
 {
+    private const int MaximumScore = 3750; // 25 questions with values from 100 through 500.
     private readonly IConfiguration _configuration;
     private readonly ConcurrentDictionary<string, string> _claims = new();
 
@@ -81,7 +81,7 @@ public sealed class RewardIssuerService
         if (string.IsNullOrWhiteSpace(request.WalletAddress) ||
             !Nethereum.Util.AddressUtil.Current.IsValidEthereumAddressHexFormat(request.WalletAddress))
             throw new ArgumentException("A valid wallet address is required.");
-        if (request.Score is < 0 or > 3750)
+        if (request.Score is < 0 or > MaximumScore)
             throw new ArgumentException("The score and reward are invalid.");
         if (string.IsNullOrWhiteSpace(request.ChainId) ||
             !request.ChainId.StartsWith("0x", StringComparison.OrdinalIgnoreCase))

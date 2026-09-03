@@ -89,7 +89,7 @@ claimButton.onclick = async () => {
     const response = await fetch(`${rewardConfig.rewardIssuerUrl.replace(/\/$/, "")}/api/issuer/submit-score`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gameId, walletAddress: account, score, reward: score * rewardPerPoint, chainId: rewardConfig.chainId, tokenAddress: rewardConfig.tokenAddress })
+      body: JSON.stringify({ gameId, walletAddress: account, score, chainId: rewardConfig.chainId, tokenAddress: rewardConfig.tokenAddress })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.message || `Request failed (${response.status})`);
