@@ -1,7 +1,9 @@
 @page "/game"
+@using System.Net.Http.Json
 @using Crypto_Trivia.Services
 @inject GameService GameService
 @inject TokenRewardService TokenRewardService
+@inject HttpClient HttpClient
 
 <PageTitle>Crypto Trivia - Play the Game</PageTitle>
 
@@ -142,8 +144,19 @@
 
                     <div class="alert alert-info mt-4">
                         <h5>1870Coin reward pending</h5>
-                        <p>An authorized 1870Coin distributor must send this reward to your connected wallet. This game never requests a transfer from your wallet.</p>
+                        <p>The payout is executed by the configured treasury wallet and verified on-chain before the reward is reported as complete.</p>
                     </div>
+
+                    @if (!string.IsNullOrWhiteSpace(RewardStatusMessage))
+                    {
+                        <div class="alert @(RewardClaimSucceeded ? "alert-success" : "alert-danger") mt-3">
+                            @RewardStatusMessage
+                        </div>
+                    }
+
+                    <button class="btn btn-success btn-lg mt-3" @onclick="SubmitRewardClaim" disabled="@IsSubmittingReward">
+                        @(IsSubmittingReward ? "Submitting reward..." : "💸 Claim live reward")
+                    </button>
 
                     <button class="btn btn-primary btn-lg mt-3" @onclick="PlayAgain">
                         🔄 Play Again
@@ -161,10 +174,13 @@
     private List<Category> Categories = new();
     private int CurrentScore = 0;
     private decimal RewardAmount = 0;
-    private string WalletAddress;
-    private string SelectedCategory;
-    private Question SelectedQuestion;
+    private string WalletAddress = string.Empty;
+    private string SelectedCategory = string.Empty;
+    private Question? SelectedQuestion;
     private bool ShowAnswer = false;
+    private bool IsSubmittingReward = false;
+    private bool RewardClaimSucceeded = false;
+    private string RewardStatusMessage = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -224,6 +240,49 @@
         ShowAnswer = false;
     }
 
+    private async Task SubmitRewardClaim()
+    {
+        if (string.IsNullOrWhiteSpace(WalletAddress))
+        {
+            RewardClaimSucceeded = false;
+            RewardStatusMessage = "Connect MetaMask before claiming your reward.";
+            return;
+        }
+
+        IsSubmittingReward = true;
+        RewardStatusMessage = string.Empty;
+        RewardClaimSucceeded = false;
+
+        try
+        {
+            var request = new RewardSubmissionRequest
+            {
+                WalletAddress = WalletAddress,
+                Score = CurrentScore
+            };
+
+            var response = await HttpClient.PostAsJsonAsync("/api/issuer/submit-score", request);
+            var payload = await response.Content.ReadFromJsonAsync<RewardSubmissionResult>();
+
+            if (response.IsSuccessStatusCode && payload is not null && payload.Success)
+            {
+                RewardClaimSucceeded = true;
+                RewardStatusMessage = $"Reward submitted successfully. Tx: {payload.TransactionHash}.";
+                return;
+            }
+
+            RewardStatusMessage = payload?.Message ?? "Reward payout request failed.";
+        }
+        catch (Exception ex)
+        {
+            RewardStatusMessage = $"Reward payout failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSubmittingReward = false;
+        }
+    }
+
     private void PlayAgain()
     {
         GameState = GameStateEnum.Initial;
@@ -231,6 +290,9 @@
         Categories = GameService.GetCategories();
         CurrentScore = 0;
         RewardAmount = 0;
+        RewardStatusMessage = string.Empty;
+        RewardClaimSucceeded = false;
+        IsSubmittingReward = false;
     }
 
     private void HandleWalletConnected(string address)
